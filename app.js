@@ -1,6 +1,21 @@
-import { joinRoom, selfId } from "https://esm.sh/trystero@0.20.0/nostr";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getDatabase, ref, push, onValue, remove
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { firebaseConfig } from "./firebase-config.js";
 
-const APP_ID = "dice-room-strihmeister";
+const isConfigured =
+  firebaseConfig &&
+  firebaseConfig.apiKey &&
+  !firebaseConfig.apiKey.startsWith("YOUR_") &&
+  firebaseConfig.databaseURL &&
+  !firebaseConfig.databaseURL.includes("YOUR_");
+
+let db = null;
+if (isConfigured) {
+  const app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+}
 
 const $ = (id) => document.getElementById(id);
 const landing = $("landing");
@@ -20,17 +35,14 @@ const nameError = $("name-error");
 const joinSection = $("join-section");
 const landingTitle = $("landing-title");
 const landingTagline = $("landing-tagline");
+const configWarning = $("config-warning");
 
 const NAME_KEY = "dice-room:name";
 nameInput.value = localStorage.getItem(NAME_KEY) || "";
 
 let currentRoomCode = null;
-let trysteroRoom = null;
-let sendRoll = null;
-let sendSync = null;
-let sendClear = null;
-const rolls = new Map();
-const peers = new Set();
+let unsubscribeRolls = null;
+let unsubscribeConnected = null;
 
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -60,6 +72,14 @@ function requireName() {
   return name;
 }
 
+function requireFirebase() {
+  if (!db) {
+    alert("Firebase is not configured. Open firebase-config.js and follow README.md.");
+    return false;
+  }
+  return true;
+}
+
 nameInput.addEventListener("input", () => {
   if (nameInput.value.trim()) clearNameError();
 });
@@ -78,6 +98,7 @@ function formatTime(ts) {
 function showLanding(joiningCode) {
   landing.hidden = false;
   room.hidden = true;
+  if (configWarning) configWarning.hidden = isConfigured;
   if (joiningCode) {
     landingTitle.textContent = "JOIN ROOM";
     landingTagline.innerHTML = `Joining room <strong class="inline-code"></strong>`;
@@ -100,70 +121,42 @@ function showRoom(code) {
 
 function joinDiceRoom(code) {
   leaveDiceRoom();
+  if (!db) return;
   currentRoomCode = code;
-  rolls.clear();
-  peers.clear();
-  updatePeerStatus();
 
-  const r = joinRoom({ appId: APP_ID }, code);
-  trysteroRoom = r;
+  const rollsRef = ref(db, `rooms/${code}/rolls`);
+  unsubscribeRolls = onValue(rollsRef, (snap) => {
+    const data = snap.val() || {};
+    const list = Object.entries(data)
+      .map(([id, r]) => ({ id, ...r }))
+      .sort((a, b) => b.value - a.value || a.timestamp - b.timestamp);
+    renderRolls(list);
+  });
 
-  const [_sendRoll, getRoll] = r.makeAction("roll");
-  const [_sendSync, getSync] = r.makeAction("sync");
-  const [_sendClear, getClear] = r.makeAction("clear");
-  sendRoll = _sendRoll;
-  sendSync = _sendSync;
-  sendClear = _sendClear;
-
-  getRoll((data) => {
-    if (data && data.id) {
-      rolls.set(data.id, data);
-      renderRolls();
+  const connRef = ref(db, ".info/connected");
+  unsubscribeConnected = onValue(connRef, (snap) => {
+    if (snap.val() === true) {
+      peerStatus.textContent = "Live";
+      peerStatus.classList.add("connected");
+      peerStatus.classList.remove("searching");
+    } else {
+      peerStatus.textContent = "Reconnecting";
+      peerStatus.classList.remove("connected");
+      peerStatus.classList.add("searching");
     }
   });
 
-  getSync((state) => {
-    if (!Array.isArray(state)) return;
-    for (const item of state) {
-      if (item && item.id) rolls.set(item.id, item);
-    }
-    renderRolls();
-  });
-
-  getClear(() => {
-    rolls.clear();
-    renderRolls();
-  });
-
-  r.onPeerJoin((peerId) => {
-    peers.add(peerId);
-    updatePeerStatus();
-    sendSync(Array.from(rolls.values()), [peerId]);
-  });
-
-  r.onPeerLeave((peerId) => {
-    peers.delete(peerId);
-    updatePeerStatus();
-  });
-
-  renderRolls();
+  renderRolls([]);
 }
 
 function leaveDiceRoom() {
-  if (trysteroRoom) {
-    try { trysteroRoom.leave(); } catch {}
-    trysteroRoom = null;
-  }
-  sendRoll = sendSync = sendClear = null;
-  rolls.clear();
-  peers.clear();
+  if (unsubscribeRolls) { unsubscribeRolls(); unsubscribeRolls = null; }
+  if (unsubscribeConnected) { unsubscribeConnected(); unsubscribeConnected = null; }
   currentRoomCode = null;
 }
 
-function renderRolls() {
-  const list = Array.from(rolls.values())
-    .sort((a, b) => b.value - a.value || a.timestamp - b.timestamp);
-  if (list.length === 0) {
+function renderRolls(list) {
+  if (!list || list.length === 0) {
     rollsList.innerHTML = '<li class="empty">No rolls yet &mdash; press the button to roll.</li>';
     return;
   }
@@ -178,21 +171,8 @@ function renderRolls() {
   `).join("");
 }
 
-function updatePeerStatus() {
-  if (!peerStatus) return;
-  const count = peers.size;
-  if (count === 0) {
-    peerStatus.textContent = "Waiting for friends — share the link";
-    peerStatus.classList.remove("connected");
-    peerStatus.classList.add("searching");
-  } else {
-    peerStatus.textContent = count === 1 ? "1 friend connected" : `${count} friends connected`;
-    peerStatus.classList.add("connected");
-    peerStatus.classList.remove("searching");
-  }
-}
-
 createBtn.addEventListener("click", () => {
+  if (!requireFirebase()) return;
   if (!requireName()) return;
   const existing = location.hash.replace(/^#/, "").toUpperCase().slice(0, 8);
   if (existing) {
@@ -203,6 +183,7 @@ createBtn.addEventListener("click", () => {
 });
 
 joinBtn.addEventListener("click", () => {
+  if (!requireFirebase()) return;
   if (!requireName()) return;
   const code = joinCodeInput.value.trim().toUpperCase();
   if (!code) { joinCodeInput.focus(); return; }
@@ -212,33 +193,27 @@ joinBtn.addEventListener("click", () => {
 joinCodeInput.addEventListener("keydown", (e) => { if (e.key === "Enter") joinBtn.click(); });
 nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") createBtn.click(); });
 
-rollBtn.addEventListener("click", () => {
-  if (!currentRoomCode) return;
+rollBtn.addEventListener("click", async () => {
+  if (!requireFirebase() || !currentRoomCode) return;
   const name = requireName();
   if (!name) return;
   rollBtn.disabled = true;
   try {
     const value = 1 + Math.floor(Math.random() * 100);
-    const roll = {
-      id: `${selfId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    await push(ref(db, `rooms/${currentRoomCode}/rolls`), {
       name,
       value,
       timestamp: Date.now()
-    };
-    rolls.set(roll.id, roll);
-    if (sendRoll) sendRoll(roll);
-    renderRolls();
+    });
   } finally {
     setTimeout(() => { rollBtn.disabled = false; }, 200);
   }
 });
 
-clearBtn.addEventListener("click", () => {
-  if (!currentRoomCode) return;
+clearBtn.addEventListener("click", async () => {
+  if (!requireFirebase() || !currentRoomCode) return;
   if (!confirm("Clear all rolls in this room?")) return;
-  rolls.clear();
-  if (sendClear) sendClear(1);
-  renderRolls();
+  await remove(ref(db, `rooms/${currentRoomCode}/rolls`));
 });
 
 leaveBtn.addEventListener("click", () => { location.hash = ""; });

@@ -2,35 +2,92 @@
 
 A tiny web page where friends join a shared room and roll 1&ndash;100 for loot, WoW-style. Highest roll wins.
 
-Static HTML/CSS/JS &mdash; hosts on GitHub Pages. Real-time sync is peer-to-peer over WebRTC, via [Trystero](https://github.com/dmotz/trystero). No backend, no accounts, no API keys.
+Static HTML/CSS/JS hosted on GitHub Pages. Real-time sync uses Firebase Realtime Database (free tier &mdash; no credit card needed).
 
-## How it works
+---
 
-When you create or join a room, your browser joins a Trystero room with the same code. Trystero uses public BitTorrent trackers to discover other peers in the room, then opens direct WebRTC connections between everyone. Rolls are broadcast peer-to-peer.
+## One-time Firebase setup (~5 minutes)
 
-**Caveats:**
-- Room state lives in open tabs. If everyone closes the page, rolls are gone. Reopening the same room code starts a fresh slate.
-- Discovery takes a few seconds. After your friend opens the link, give it 5&ndash;20 seconds for the connection to come up.
-- On heavily restricted networks (some corporate WiFi), WebRTC or BitTorrent trackers may be blocked. See "Switching transport" below if that happens.
+Need a Google account.
 
-## Deploy to GitHub Pages
+### 1. Create a Firebase project
+
+1. Go to https://console.firebase.google.com/ and sign in.
+2. Click **Create a project** (or **Add project**).
+3. **Project name:** anything, e.g. `dice-room`. Click **Continue**.
+4. **Google Analytics:** toggle it **off** &mdash; you don't need it. Click **Create project**.
+5. Wait ~20 seconds, then click **Continue**.
+
+### 2. Enable the Realtime Database
+
+This is the part that stores rolls. (Don't confuse it with "Firestore" &mdash; they're different products.)
+
+1. Left sidebar: **Build &rarr; Realtime Database**.
+2. Click **Create Database**.
+3. **Region:** pick the one closest to you. Click **Next**.
+4. Choose **Start in test mode** &rarr; **Enable**.
+
+You'll land on the data tree. The URL at the top is your `databaseURL` &mdash; you'll need it in step 4. It looks like:
+`https://dice-room-xxxxx-default-rtdb.europe-west1.firebasedatabase.app/`
+
+### 3. Register a web app
+
+1. Click the gear icon (top-left, next to "Project Overview") &rarr; **Project settings**.
+2. Scroll to **Your apps**. Click the `</>` (web) icon.
+3. **Nickname:** anything, e.g. `dice-room-web`. **Do NOT** check "Also set up Firebase Hosting".
+4. Click **Register app**.
+
+You'll see a snippet like:
+
+```js
+const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "dice-room-xxxxx.firebaseapp.com",
+  projectId: "dice-room-xxxxx",
+  storageBucket: "dice-room-xxxxx.appspot.com",
+  messagingSenderId: "123...",
+  appId: "1:123...:web:abc..."
+};
+```
+
+Keep this tab open. Click **Continue to console** when done copying.
+
+### 4. Paste config into [firebase-config.js](firebase-config.js)
+
+Open [`firebase-config.js`](firebase-config.js) and replace each `"YOUR_..."` value with the matching one from Firebase.
+
+**Important:** the snippet Firebase shows you usually doesn't include `databaseURL`. Add it manually from step 2 above. Final file:
+
+```js
+export const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "dice-room-xxxxx.firebaseapp.com",
+  databaseURL: "https://dice-room-xxxxx-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "dice-room-xxxxx",
+  storageBucket: "dice-room-xxxxx.appspot.com",
+  messagingSenderId: "123...",
+  appId: "1:123...:web:abc..."
+};
+```
+
+### 5. Commit and push
 
 ```bash
-git add .
-git commit -m "Dice room"
+git add firebase-config.js
+git commit -m "Configure Firebase"
 git push
 ```
 
-Then on GitHub: **Settings &rarr; Pages &rarr; Source: Deploy from a branch &rarr; Branch: `main` / `/ (root)`** &rarr; Save.
+GitHub Pages redeploys in ~30&ndash;60 seconds. Refresh the live URL &mdash; the red warning banner should disappear, and rooms now sync.
 
-After a minute your app is live at `https://<your-username>.github.io/dice-room/`.
+---
 
 ## Using it
 
 1. Open the page, enter your name, click **Create new room**.
-2. Share the URL (it contains the room code in the `#` hash) with friends.
-3. Everyone clicks **ROLL 1&ndash;100**. The list updates live as peers send their rolls. Highest is on top with a gold border.
-4. **Clear all rolls** broadcasts a reset to everyone in the room.
+2. Share the URL with friends (it contains the room code in the `#` hash).
+3. Everyone clicks **Roll 1&ndash;100**. Highest is on top with a gold border.
+4. **Clear all rolls** resets the room.
 
 ## Local development
 
@@ -42,26 +99,35 @@ python3 -m http.server 8000
 npx serve .
 ```
 
-Open http://localhost:8000. To test multi-peer locally, open two tabs (one in normal mode, one in incognito so they get different peer identities) and use the same room code.
+Open http://localhost:8000.
 
-## Switching transport
+## Security rules (recommended)
 
-Default is the Nostr strategy &mdash; public Nostr relays are well-maintained and reliable on mobile. If it's flaky for your group, switch by changing one line at the top of [app.js](app.js):
+Firebase's default "test mode" rules allow anyone with your project ID to read/write everything, and they expire after 30 days. Tighten them via **Realtime Database &rarr; Rules**:
 
-```js
-import { joinRoom, selfId } from "https://esm.sh/trystero@0.20.0/nostr";
+```json
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": "$roomId.matches(/^[A-Z0-9]{4,8}$/)",
+        ".write": "$roomId.matches(/^[A-Z0-9]{4,8}$/)",
+        "rolls": {
+          "$rollId": {
+            ".validate": "newData.hasChildren(['name','value','timestamp']) && newData.child('value').isNumber() && newData.child('value').val() >= 1 && newData.child('value').val() <= 100 && newData.child('name').isString() && newData.child('name').val().length <= 20"
+          }
+        }
+      }
+    }
+  }
+}
 ```
 
-Replace `/nostr` with:
-
-- `/torrent` &mdash; BitTorrent trackers (zero-config but trackers can be offline; often blocked on mobile carriers)
-- `/mqtt` &mdash; public MQTT brokers
-- `/ipfs` &mdash; IPFS pubsub
-
-All four are zero-config. If one is flaky for your group, try another.
+Still allows anonymous read/write (no login), but restricts the shape of data and the room-code format.
 
 ## Files
 
-- [`index.html`](index.html) &mdash; markup for the landing screen and the room
+- [`index.html`](index.html) &mdash; markup
 - [`style.css`](style.css) &mdash; styles
-- [`app.js`](app.js) &mdash; routing, Trystero room, roll logic
+- [`app.js`](app.js) &mdash; routing, Firebase listener, roll logic
+- [`firebase-config.js`](firebase-config.js) &mdash; your project credentials (edit this)
