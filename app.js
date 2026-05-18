@@ -17,6 +17,9 @@ const roomCodeDisplay = $("room-code-display");
 const rollsList = $("rolls-list");
 const peerStatus = $("peer-status");
 const nameError = $("name-error");
+const joinSection = $("join-section");
+const landingTitle = $("landing-title");
+const landingTagline = $("landing-tagline");
 
 const NAME_KEY = "dice-room:name";
 nameInput.value = localStorage.getItem(NAME_KEY) || "";
@@ -72,9 +75,21 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function showLanding() {
+function showLanding(joiningCode) {
   landing.hidden = false;
   room.hidden = true;
+  if (joiningCode) {
+    landingTitle.textContent = "JOIN ROOM";
+    landingTagline.innerHTML = `Joining room <strong class="inline-code"></strong>`;
+    landingTagline.querySelector(".inline-code").textContent = joiningCode;
+    createBtn.textContent = "Enter room";
+    joinSection.hidden = true;
+  } else {
+    landingTitle.textContent = "DICE ROOM";
+    landingTagline.textContent = "Roll for loot. Highest wins.";
+    createBtn.textContent = "Create new room";
+    joinSection.hidden = false;
+  }
 }
 
 function showRoom(code) {
@@ -179,7 +194,12 @@ function updatePeerStatus() {
 
 createBtn.addEventListener("click", () => {
   if (!requireName()) return;
-  location.hash = randomCode();
+  const existing = location.hash.replace(/^#/, "").toUpperCase().slice(0, 8);
+  if (existing) {
+    handleRoute();
+  } else {
+    location.hash = randomCode();
+  }
 });
 
 joinBtn.addEventListener("click", () => {
@@ -237,20 +257,19 @@ copyBtn.addEventListener("click", async () => {
 
 function handleRoute() {
   const hash = location.hash.replace(/^#/, "").toUpperCase().slice(0, 8);
+  const savedName = (localStorage.getItem(NAME_KEY) || "").trim();
   if (hash) {
-    const savedName = (localStorage.getItem(NAME_KEY) || "").trim();
-    if (!savedName) {
-      joinCodeInput.value = hash;
-      history.replaceState(null, "", location.pathname + location.search);
-      showLanding();
+    if (savedName) {
+      if (hash !== currentRoomCode) joinDiceRoom(hash);
+      showRoom(hash);
+    } else {
+      leaveDiceRoom();
+      showLanding(hash);
       nameInput.focus();
-      return;
     }
-    if (hash !== currentRoomCode) joinDiceRoom(hash);
-    showRoom(hash);
   } else {
     leaveDiceRoom();
-    showLanding();
+    showLanding(null);
   }
 }
 

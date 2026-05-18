@@ -54,6 +54,13 @@ h1 {
   letter-spacing: .5px;
 }
 
+.inline-code {
+  color: var(--gold);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
 .card {
   background: var(--card);
   border: 1px solid var(--gold-soft);

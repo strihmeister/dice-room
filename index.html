@@ -9,8 +9,8 @@
 <body>
   <div id="app">
     <section id="landing" class="view">
-      <h1>DICE ROOM</h1>
-      <p class="tagline">Roll for loot. Highest wins.</p>
+      <h1 id="landing-title">DICE ROOM</h1>
+      <p id="landing-tagline" class="tagline">Roll for loot. Highest wins.</p>
 
       <div class="card">
         <label for="name-input">Your name</label>
@@ -19,12 +19,14 @@
 
         <button id="create-btn" class="primary">Create new room</button>
 
-        <div class="divider">or</div>
+        <div id="join-section">
+          <div class="divider">or</div>
 
-        <label for="join-code">Join existing room</label>
-        <div class="row">
-          <input id="join-code" type="text" placeholder="Room code" maxlength="8" autocomplete="off" />
-          <button id="join-btn">Join</button>
+          <label for="join-code">Join existing room</label>
+          <div class="row">
+            <input id="join-code" type="text" placeholder="Room code" maxlength="8" autocomplete="off" />
+            <button id="join-btn">Join</button>
+          </div>
         </div>
       </div>
 
