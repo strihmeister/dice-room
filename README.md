@@ -46,17 +46,17 @@ Open http://localhost:8000. To test multi-peer locally, open two tabs (one in no
 
 ## Switching transport
 
-If BitTorrent trackers are blocked on your network, you can switch Trystero to a different strategy by changing one line at the top of [app.js](app.js):
+Default is the Nostr strategy &mdash; public Nostr relays are well-maintained and reliable on mobile. If it's flaky for your group, switch by changing one line at the top of [app.js](app.js):
 
 ```js
-import { joinRoom, selfId } from "https://esm.sh/trystero@0.20.0/torrent";
+import { joinRoom, selfId } from "https://esm.sh/trystero@0.20.0/nostr";
 ```
 
-Replace `/torrent` with:
+Replace `/nostr` with:
 
-- `/nostr` &mdash; uses public Nostr relays for peer discovery
-- `/mqtt` &mdash; uses public MQTT brokers
-- `/ipfs` &mdash; uses IPFS pubsub
+- `/torrent` &mdash; BitTorrent trackers (zero-config but trackers can be offline; often blocked on mobile carriers)
+- `/mqtt` &mdash; public MQTT brokers
+- `/ipfs` &mdash; IPFS pubsub
 
 All four are zero-config. If one is flaky for your group, try another.
 

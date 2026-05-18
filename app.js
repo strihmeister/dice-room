@@ -1,4 +1,4 @@
-import { joinRoom, selfId } from "https://esm.sh/trystero@0.20.0/torrent";
+import { joinRoom, selfId } from "https://esm.sh/trystero@0.20.0/nostr";
 
 const APP_ID = "dice-room-strihmeister";
 
@@ -138,7 +138,7 @@ function joinDiceRoom(code) {
   r.onPeerJoin((peerId) => {
     peers.add(peerId);
     updatePeerStatus();
-    sendSync(Array.from(rolls.values()), peerId);
+    sendSync(Array.from(rolls.values()), [peerId]);
   });
 
   r.onPeerLeave((peerId) => {
