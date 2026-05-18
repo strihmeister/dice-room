@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dice Room</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <section id="landing" class="view">
+      <h1>DICE ROOM</h1>
+      <p class="tagline">Roll for loot. Highest wins.</p>
+
+      <div class="card">
+        <label for="name-input">Your name</label>
+        <input id="name-input" type="text" placeholder="Enter your name" maxlength="20" autocomplete="off" />
+
+        <button id="create-btn" class="primary">Create new room</button>
+
+        <div class="divider">or</div>
+
+        <label for="join-code">Join existing room</label>
+        <div class="row">
+          <input id="join-code" type="text" placeholder="Room code" maxlength="8" autocomplete="off" />
+          <button id="join-btn">Join</button>
+        </div>
+      </div>
+
+    </section>
+
+    <section id="room" class="view" hidden>
+      <header class="room-header">
+        <div class="room-meta">
+          <span class="muted">Room</span>
+          <span id="room-code-display" class="room-code"></span>
+        </div>
+        <button id="copy-link" class="small">Copy link</button>
+        <button id="leave-btn" class="small ghost">Leave</button>
+      </header>
+
+      <p id="peer-status" class="peer-status">Connecting&hellip;</p>
+
+      <div class="roll-area">
+        <button id="roll-btn" class="big">ROLL 1&ndash;100</button>
+        <button id="clear-btn" class="small ghost">Clear all rolls</button>
+      </div>
+
+      <ul id="rolls-list"></ul>
+    </section>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
