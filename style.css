@@ -173,6 +173,22 @@ button.ghost:hover:not(:disabled) {
   border-radius: 6px;
 }
 
+.error-msg {
+  color: var(--danger);
+  font-size: .85rem;
+  margin: .4rem 0 0;
+}
+
+input.error {
+  border-color: var(--danger);
+  animation: shake .35s ease-in-out;
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+
 .room-header {
   display: flex;
   align-items: center;

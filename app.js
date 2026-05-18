@@ -16,6 +16,7 @@ const copyBtn = $("copy-link");
 const roomCodeDisplay = $("room-code-display");
 const rollsList = $("rolls-list");
 const peerStatus = $("peer-status");
+const nameError = $("name-error");
 
 const NAME_KEY = "dice-room:name";
 nameInput.value = localStorage.getItem(NAME_KEY) || "";
@@ -35,12 +36,30 @@ function randomCode() {
   return out;
 }
 
+function showNameError() {
+  if (nameError) nameError.hidden = false;
+  nameInput.classList.remove("error");
+  void nameInput.offsetWidth;
+  nameInput.classList.add("error");
+  nameInput.focus();
+}
+
+function clearNameError() {
+  if (nameError) nameError.hidden = true;
+  nameInput.classList.remove("error");
+}
+
 function requireName() {
   const name = nameInput.value.trim();
-  if (!name) { nameInput.focus(); return null; }
+  if (!name) { showNameError(); return null; }
+  clearNameError();
   localStorage.setItem(NAME_KEY, name);
   return name;
 }
+
+nameInput.addEventListener("input", () => {
+  if (nameInput.value.trim()) clearNameError();
+});
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => (
